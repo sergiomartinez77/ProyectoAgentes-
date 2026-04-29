@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tracker IA PRO</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="box">
+
+<h1> Tracker IA</h1>
+<p>Analiza tu rendimiento diario</p>
+
+<form id="predictionForm" action="/predecir" method="POST">
+
+<input type="text" name="nombre" placeholder="Tu nombre" required>
+<input type="number" step="0.1" name="sueno" placeholder="Horas de sueño" required>
+<input type="number" name="animo" placeholder="Ánimo (1-10)" required>
+<input type="number" name="energia" placeholder="Energía (1-10)" required>
+<input type="number" name="estres" placeholder="Estrés (1-10)" required>
+<input type="number" name="redes" placeholder="Redes sociales (min)" required>
+
+<select name="ejercicio">
+<option>Si</option>
+<option>No</option>
+</select>
+
+<input type="number" name="cafe" placeholder="Tazas de café" required>
+
+<button type="submit">Analizar Día</button>
+
+</form>
+
+<div id="resultado" class="resultado" style="display: none;">
+<!-- Result will be inserted here -->
+</div>
+
+</div>
+
+<script>
+document.getElementById('predictionForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    fetch('/predecir', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const newResult = doc.querySelector('.resultado');
+        if (newResult) {
+            document.getElementById('resultado').innerHTML = newResult.innerHTML;
+            document.getElementById('resultado').style.display = 'block';
+        }
+    })
+    .catch(error => console.error('Error:', error));
+});
+</script>
+
+</body>
+</html>
