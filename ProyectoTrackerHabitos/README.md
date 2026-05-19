@@ -86,15 +86,7 @@ GEMINI_API_KEY=AIza...tu_key_aqui
 
 > **Nota:** El chatbot funciona sin la API key usando respuestas locales. Gemini solo mejora la calidad de los consejos y rutinas.
 
-### 5. Generar los datos de entrenamiento
-
-```bash
-python generar_datos.py
-```
-
-Esto crea `datos_entrenamiento.csv` con 1000 registros sintéticos. El modelo se entrena automáticamente al iniciar la app.
-
-### 6. Correr la aplicación
+### 5. Correr la aplicación
 
 ```bash
 python app.py
