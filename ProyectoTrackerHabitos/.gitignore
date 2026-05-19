@@ -1,0 +1,22 @@
+# Variables de entorno (contiene API keys)
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Entornos virtuales
+venv/
+env/
+.venv/
+
+# VS Code
+.vscode/
+
+# Datos generados (se regeneran automáticamente)
+datos_entrenamiento.csv
+
+# Archivos comprimidos
+*.zip

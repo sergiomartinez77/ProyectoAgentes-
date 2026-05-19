@@ -1,51 +1,56 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify, session
+from ia2 import IAPro
+import uuid
 
 app = Flask(__name__)
+app.secret_key = "tracker_habitos_secret_key"
+
+ia = IAPro()
+
 
 @app.route("/")
 def inicio():
+    # Asignar session_id único si no existe
+    if "session_id" not in session:
+        session["session_id"] = str(uuid.uuid4())
     return render_template("index.html")
 
 
-@app.route("/predecir", methods=["POST"])
-def predecir():
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    """
+    Endpoint principal del chatbot.
+    Recibe: { "mensaje": "texto del usuario" }
+    Devuelve: { "respuesta": "texto del bot" }
+    """
+    data = request.get_json(silent=True)
 
-    nombre = request.form["nombre"]
-    sueno = float(request.form["sueno"])
-    animo = int(request.form["animo"])
-    energia = int(request.form["energia"])
-    estres = int(request.form["estres"])
-    redes = int(request.form["redes"])
-    ejercicio = request.form["ejercicio"]
-    cafe = int(request.form["cafe"])
+    if not data or "mensaje" not in data:
+        return jsonify({"error": "Falta el campo 'mensaje'"}), 400
 
-    # Simulación IA por ahora
-    score = animo + energia + (10 - estres)
+    session_id = session.get("session_id")
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        session["session_id"] = session_id
 
-    if sueno >= 7:
-        score += 2
+    mensaje = data["mensaje"].strip()
 
-    if redes > 180:
-        score -= 2
-
-    if ejercicio == "Si":
-        score += 2
-
-    probabilidad = min(max(score * 5, 10), 95)
-
-    if probabilidad >= 75:
-        mensaje = "🚀 Hoy estás imparable. No rompas la racha."
-    elif probabilidad >= 55:
-        mensaje = "🔥 Buen día para avanzar. Hazlo ahora."
+    # Comando especial para reiniciar
+    if mensaje.lower() in ("reiniciar", "reset", "nuevo", "restart"):
+        respuesta = ia.reiniciar(session_id)
     else:
-        mensaje = "⚡ Empieza pequeño hoy. Lo importante es cumplir."
+        respuesta = ia.responder(session_id, mensaje)
 
-    return render_template(
-        "index.html",
-        mensaje=mensaje,
-        nombre=nombre,
-        probabilidad=probabilidad
-    )
+    return jsonify({"respuesta": respuesta})
+
+
+@app.route("/api/reset", methods=["POST"])
+def reset():
+    """Reinicia la sesión del usuario."""
+    session_id = session.get("session_id", str(uuid.uuid4()))
+    session["session_id"] = session_id
+    respuesta = ia.reiniciar(session_id)
+    return jsonify({"respuesta": respuesta})
 
 
 if __name__ == "__main__":

@@ -1,67 +1,207 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tracker IA PRO</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tracker IA — Chatbot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
 
-<div class="box">
+  <div class="chat-wrapper">
 
-<h1> Tracker IA</h1>
-<p>Analiza tu rendimiento diario</p>
+    <!-- Header -->
+    <div class="chat-header">
+      <div class="avatar">🤖</div>
+      <div class="header-info">
+        <span class="bot-name">Tracker IA</span>
+        <span class="bot-status">● En línea</span>
+      </div>
+      <button class="reset-btn" id="resetBtn" title="Nueva sesión">↺</button>
+    </div>
 
-<form id="predictionForm" action="/predecir" method="POST">
+    <!-- Mensajes -->
+    <div class="chat-messages" id="chatMessages"></div>
 
-<input type="text" name="nombre" placeholder="Tu nombre" required>
-<input type="number" step="0.1" name="sueno" placeholder="Horas de sueño" required>
-<input type="number" name="animo" placeholder="Ánimo (1-10)" required>
-<input type="number" name="energia" placeholder="Energía (1-10)" required>
-<input type="number" name="estres" placeholder="Estrés (1-10)" required>
-<input type="number" name="redes" placeholder="Redes sociales (min)" required>
+    <!-- Input -->
+    <div class="chat-input-area">
+      <input
+        type="text"
+        id="userInput"
+        placeholder="Escribe tu respuesta..."
+        autocomplete="off"
+      />
+      <button id="sendBtn">Enviar</button>
+    </div>
 
-<select name="ejercicio">
-<option>Si</option>
-<option>No</option>
-</select>
+  </div>
 
-<input type="number" name="cafe" placeholder="Tazas de café" required>
+  <script>
+    const messagesEl = document.getElementById("chatMessages");
+    const inputEl    = document.getElementById("userInput");
+    const sendBtn    = document.getElementById("sendBtn");
+    const resetBtn   = document.getElementById("resetBtn");
 
-<button type="submit">Analizar Día</button>
-
-</form>
-
-<div id="resultado" class="resultado" style="display: none;">
-<!-- Result will be inserted here -->
-</div>
-
-</div>
-
-<script>
-document.getElementById('predictionForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const formData = new FormData(this);
-    
-    fetch('/predecir', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.text())
-    .then(html => {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const newResult = doc.querySelector('.resultado');
-        if (newResult) {
-            document.getElementById('resultado').innerHTML = newResult.innerHTML;
-            document.getElementById('resultado').style.display = 'block';
+    // -------------------------------------------------------
+    // Detectar si el texto contiene el menú de opciones
+    // y renderizar botones rápidos
+    // -------------------------------------------------------
+    function parseQuickReplies(text) {
+      const lines = text.split("\n");
+      const replies = [];
+      lines.forEach(line => {
+        const m = line.match(/^([1-9]️⃣)\s+(.+)/);
+        if (m) {
+          // Extraer el número del emoji
+          const num = m[1].replace("️⃣", "").replace(/\uFE0F/g, "");
+          replies.push({ label: m[2].trim(), value: num });
         }
-    })
-    .catch(error => console.error('Error:', error));
-});
-</script>
+      });
+      return replies;
+    }
+
+    // -------------------------------------------------------
+    // Renderizar mensaje
+    // -------------------------------------------------------
+    function addMessage(text, role) {
+      const wrap = document.createElement("div");
+      wrap.classList.add("message", role);
+
+      const bubble = document.createElement("div");
+      bubble.classList.add("bubble");
+
+      // Markdown básico: **negrita**, _cursiva_, saltos de línea, ---
+      const html = text
+        .replace(/---/g, "<hr>")
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/_(.*?)_/g, "<em>$1</em>")
+        .replace(/\n/g, "<br>");
+
+      bubble.innerHTML = html;
+      wrap.appendChild(bubble);
+
+      // Quick replies solo en mensajes del bot
+      if (role === "bot") {
+        const replies = parseQuickReplies(text);
+        if (replies.length > 0) {
+          const qr = document.createElement("div");
+          qr.classList.add("quick-replies");
+          replies.forEach(r => {
+            const btn = document.createElement("button");
+            btn.classList.add("qr-btn");
+            btn.textContent = r.label;
+            btn.addEventListener("click", () => {
+              // Eliminar todos los quick-reply containers al elegir
+              document.querySelectorAll(".quick-replies").forEach(el => el.remove());
+              sendMessage(r.value);
+            });
+            qr.appendChild(btn);
+          });
+          wrap.appendChild(qr);
+        }
+      }
+
+      messagesEl.appendChild(wrap);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    // -------------------------------------------------------
+    // Indicador de escritura
+    // -------------------------------------------------------
+    function showTyping() {
+      const wrap = document.createElement("div");
+      wrap.classList.add("message", "bot");
+      wrap.id = "typing";
+      const bubble = document.createElement("div");
+      bubble.classList.add("bubble", "typing");
+      bubble.innerHTML = "<span></span><span></span><span></span>";
+      wrap.appendChild(bubble);
+      messagesEl.appendChild(wrap);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function hideTyping() {
+      const el = document.getElementById("typing");
+      if (el) el.remove();
+    }
+
+    // -------------------------------------------------------
+    // Enviar mensaje
+    // -------------------------------------------------------
+    async function sendMessage(text) {
+      if (!text.trim()) return;
+
+      addMessage(text, "user");
+      inputEl.value = "";
+      inputEl.disabled = true;
+      sendBtn.disabled = true;
+
+      showTyping();
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mensaje: text }),
+        });
+        const data = await res.json();
+        hideTyping();
+        addMessage(data.respuesta || data.error, "bot");
+      } catch {
+        hideTyping();
+        addMessage("❌ Error de conexión. Intenta de nuevo.", "bot");
+      } finally {
+        inputEl.disabled = false;
+        sendBtn.disabled = false;
+        inputEl.focus();
+      }
+    }
+
+    // -------------------------------------------------------
+    // Iniciar chat
+    // -------------------------------------------------------
+    async function iniciarChat() {
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mensaje: "__inicio__" }),
+        });
+        const data = await res.json();
+        addMessage(data.respuesta, "bot");
+      } catch {
+        addMessage("❌ No se pudo conectar con el servidor.", "bot");
+      }
+    }
+
+    // -------------------------------------------------------
+    // Reiniciar
+    // -------------------------------------------------------
+    async function resetChat() {
+      messagesEl.innerHTML = "";
+      try {
+        const res = await fetch("/api/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        const data = await res.json();
+        addMessage(data.respuesta, "bot");
+      } catch {
+        addMessage("❌ Error al reiniciar.", "bot");
+      }
+    }
+
+    // -------------------------------------------------------
+    // Eventos
+    // -------------------------------------------------------
+    sendBtn.addEventListener("click", () => sendMessage(inputEl.value));
+    inputEl.addEventListener("keydown", e => {
+      if (e.key === "Enter") sendMessage(inputEl.value);
+    });
+    resetBtn.addEventListener("click", resetChat);
+
+    iniciarChat();
+  </script>
 
 </body>
 </html>
