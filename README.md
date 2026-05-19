@@ -1,4 +1,4 @@
-# 🤖 Tracker IA — Chatbot de Hábitos
+#  Tracker IA — Chatbot de Hábitos
 
 Chatbot inteligente que analiza tus hábitos diarios y genera rutinas de gimnasio personalizadas.
 
@@ -8,16 +8,16 @@ Usa un modelo **híbrido**:
 
 ---
 
-## ✨ Funcionalidades
+## Funcionalidades
 
-- 📊 **Análisis de hábitos**: ingresa tus datos del día (sueño, ánimo, energía, estrés, etc.) y el modelo predice tu probabilidad de éxito
-- 🏋️ **Rutina de gimnasio**: genera una rutina semanal personalizada según tu objetivo, nivel y equipamiento
-- 💬 **Interfaz de chat**: conversación fluida con botones de respuesta rápida
-- 🔄 **Sesiones independientes**: cada usuario tiene su propio estado de conversación
+-  **Análisis de hábitos**: ingresa tus datos del día (sueño, ánimo, energía, estrés, etc.) y el modelo predice tu probabilidad de éxito
+-  **Rutina de gimnasio**: genera una rutina semanal personalizada según tu objetivo, nivel y equipamiento
+-  **Interfaz de chat**: conversación fluida con botones de respuesta rápida
+-  **Sesiones independientes**: cada usuario tiene su propio estado de conversación
 
 ---
 
-## 🗂️ Estructura del proyecto
+## Estructura del proyecto
 
 ```
 ProyectoTrackerHabitos/
@@ -36,7 +36,7 @@ ProyectoTrackerHabitos/
 
 ---
 
-## 🚀 Cómo correrlo localmente
+##  Cómo correrlo localmente
 
 ### 1. Clonar el repositorio
 
@@ -96,7 +96,7 @@ Abre tu navegador en: **http://127.0.0.1:5000**
 
 ---
 
-## 📦 Dependencias principales
+##  Dependencias principales
 
 | Librería | Uso |
 |---|---|
@@ -108,7 +108,7 @@ Abre tu navegador en: **http://127.0.0.1:5000**
 
 ---
 
-## 🔌 Endpoints de la API
+##  Endpoints de la API
 
 | Método | Ruta | Descripción |
 |---|---|---|
@@ -118,7 +118,7 @@ Abre tu navegador en: **http://127.0.0.1:5000**
 
 ---
 
-## 🧠 Cómo funciona el modelo híbrido
+##  Cómo funciona el modelo híbrido
 
 ```
 Usuario responde preguntas
@@ -136,7 +136,7 @@ El RandomForest se entrena con variables como horas de sueño, estado de ánimo,
 
 ---
 
-## 📊 Reentrenar con tus propios datos
+##  Reentrenar con tus propios datos
 
 Reemplaza `datos_entrenamiento.csv` con tu propio archivo manteniendo estas columnas:
 
