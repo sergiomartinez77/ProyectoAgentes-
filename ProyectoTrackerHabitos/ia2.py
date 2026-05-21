@@ -100,7 +100,6 @@ class IAPro:
             sesion["flujo"] = "menu"
             sesion["paso"]  = "menu"
             return f"Hola, **{sesion['datos']['nombre']}** 👋\n\n{self.MENU}", sesion
-
         # ── Menú ─────────────────────────────────────────────────────
         if flujo == "menu":
             if mensaje == "1":

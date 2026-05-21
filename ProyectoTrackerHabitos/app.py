@@ -36,13 +36,16 @@ def chat():
     mensaje = data["mensaje"].strip()
     ia      = get_ia()
 
-    # Leer estado desde la cookie
-    estado = session.get("chat_state")
-    if not estado or mensaje == "__inicio__":
+    # Inicio de conversación — solo inicializar estado y saludar
+    if mensaje == "__inicio__":
         estado = ia.sesion_nueva()
-        respuesta, estado = ia.responder(estado, "__inicio__")
         session["chat_state"] = estado
-        return jsonify({"respuesta": respuesta})
+        return jsonify({"respuesta": "¡Hola! Soy Trackito, tu asistente de hábitos ⚡ ¿Cómo te llamas?"})
+
+    # Leer estado desde la cookie, crear uno nuevo si no existe
+    estado = session.get("chat_state")
+    if not estado:
+        estado = ia.sesion_nueva()
 
     # Comando de reinicio
     if mensaje.lower() in ("reiniciar", "reset", "nuevo", "restart"):
@@ -52,8 +55,6 @@ def chat():
 
     # Procesar mensaje normal
     respuesta, estado = ia.responder(estado, mensaje)
-
-    # Guardar estado actualizado en la cookie
     session["chat_state"] = estado
     session.modified = True
 
