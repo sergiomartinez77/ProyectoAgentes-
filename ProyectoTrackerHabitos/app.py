@@ -59,11 +59,11 @@ def reset():
 
 @app.route("/api/debug")
 def debug():
-    import os, google.generativeai as genai
+    import google.generativeai as genai
     key = os.getenv("GEMINI_API_KEY", "")
     genai.configure(api_key=key)
     resultados = {}
-    for modelo in ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash-lite", "gemini-pro"]:
+    for modelo in ["gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-2.0-flash-lite", "gemini-1.5-flash", "gemini-1.5-pro"]:
         try:
             r = genai.GenerativeModel(modelo).generate_content("Di solo: OK")
             resultados[modelo] = r.text.strip()
