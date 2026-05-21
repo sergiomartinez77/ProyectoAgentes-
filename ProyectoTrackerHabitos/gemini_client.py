@@ -180,7 +180,21 @@ Pregunta de {nombre}: {pregunta}"""
             respuesta = self._cliente.generate_content(prompt)
             return respuesta.text.strip()
         except Exception as e:
-            print(f"⚠️  Error Gemini: {e}")
+            codigo = str(e)
+            print(f"⚠️  Error Gemini: {codigo}")
+            # Si es error de cuota/modelo, intentar reinicializar con modelo alternativo
+            if "429" in codigo or "quota" in codigo.lower():
+                if self.MODELO != "gemini-1.5-flash":
+                    print("🔄 Reintentando con gemini-1.5-flash...")
+                    try:
+                        import google.generativeai as genai
+                        cliente_alt = genai.GenerativeModel("gemini-1.5-flash")
+                        respuesta = cliente_alt.generate_content(prompt)
+                        self._cliente = cliente_alt
+                        self.MODELO = "gemini-1.5-flash"
+                        return respuesta.text.strip()
+                    except Exception as e2:
+                        print(f"⚠️  Error con modelo alternativo: {e2}")
             return fallback
 
     # ------------------------------------------------------------------

@@ -57,5 +57,20 @@ def reset():
     return jsonify({"respuesta": respuesta})
 
 
+@app.route("/api/debug")
+def debug():
+    import os, google.generativeai as genai
+    key = os.getenv("GEMINI_API_KEY", "")
+    genai.configure(api_key=key)
+    resultados = {}
+    for modelo in ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash-lite", "gemini-pro"]:
+        try:
+            r = genai.GenerativeModel(modelo).generate_content("Di solo: OK")
+            resultados[modelo] = r.text.strip()
+        except Exception as e:
+            resultados[modelo] = f"ERROR: {str(e)[:120]}"
+    return jsonify(resultados)
+
+
 if __name__ == "__main__":
     app.run(debug=True)
