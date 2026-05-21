@@ -3,12 +3,17 @@ Cliente de Gemini para generar consejos y rutinas en lenguaje natural.
 Si la API key no está configurada, usa respuestas de fallback locales.
 """
 import os
-from pathlib import Path
-from dotenv import load_dotenv
 
-# En Vercel las variables ya están en el entorno del proceso.
-# override=False asegura que load_dotenv no pise esas variables con el .env local.
-load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=False)
+# Solo cargar .env en local (si existe y es legible). En Vercel la variable
+# ya está inyectada en el entorno y no necesitamos este paso.
+try:
+    from pathlib import Path
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent / ".env"
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path, override=False, encoding="utf-8")
+except Exception:
+    pass  # En Vercel no hay .env, ignorar silenciosamente
 
 
 class GeminiClient:

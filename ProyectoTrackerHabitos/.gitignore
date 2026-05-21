@@ -1,3 +1,6 @@
+# Variables de entorno (nunca subir al repo)
+.env
+
 # Python
 __pycache__/
 *.pyc
