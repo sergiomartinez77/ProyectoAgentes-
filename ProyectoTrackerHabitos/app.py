@@ -57,5 +57,19 @@ def reset():
     return jsonify({"respuesta": respuesta})
 
 
+@app.route("/api/debug")
+def debug():
+    """Endpoint temporal para diagnosticar variables de entorno en Vercel."""
+    import os
+    key = os.getenv("GEMINI_API_KEY", "NO_ENCONTRADA")
+    key_preview = key[:8] + "..." if len(key) > 8 else key
+    return jsonify({
+        "key_presente": key != "NO_ENCONTRADA",
+        "key_preview": key_preview,
+        "key_es_placeholder": key == "pega_tu_key_aqui",
+        "gemini_disponible": get_ia().gemini.disponible
+    })
+
+
 if __name__ == "__main__":
     app.run(debug=True)
