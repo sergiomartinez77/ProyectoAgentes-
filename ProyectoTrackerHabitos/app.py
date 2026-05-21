@@ -57,32 +57,5 @@ def reset():
     return jsonify({"respuesta": respuesta})
 
 
-@app.route("/api/debug")
-def debug():
-    """Endpoint temporal para diagnosticar Gemini en Vercel."""
-    import os
-    key = os.getenv("GEMINI_API_KEY", "NO_ENCONTRADA")
-    key_preview = key[:8] + "..." if len(key) > 8 else key
-    ia = get_ia()
-
-    # Intentar una llamada real a Gemini
-    test_result = "no_probado"
-    test_error  = None
-    try:
-        resp = ia.gemini._cliente.generate_content("Di solo: OK")
-        test_result = resp.text.strip()
-    except Exception as e:
-        test_result = "error"
-        test_error  = str(e)
-
-    return jsonify({
-        "key_presente":      key != "NO_ENCONTRADA",
-        "key_preview":       key_preview,
-        "gemini_disponible": ia.gemini.disponible,
-        "test_llamada":      test_result,
-        "test_error":        test_error,
-    })
-
-
 if __name__ == "__main__":
     app.run(debug=True)

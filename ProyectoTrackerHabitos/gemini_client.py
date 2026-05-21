@@ -13,7 +13,7 @@ load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=False)
 
 class GeminiClient:
 
-    MODELO = "gemini-2.0-flash-lite"
+    MODELO = "gemini-1.5-flash"
 
     def __init__(self):
         self.api_key    = os.getenv("GEMINI_API_KEY", "")
