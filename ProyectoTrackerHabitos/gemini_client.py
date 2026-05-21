@@ -6,8 +6,9 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Cargar .env desde la carpeta del proyecto, sin importar desde dónde se ejecute
-load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+# En Vercel las variables ya están en el entorno del proceso.
+# override=False asegura que load_dotenv no pise esas variables con el .env local.
+load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=False)
 
 
 class GeminiClient:
