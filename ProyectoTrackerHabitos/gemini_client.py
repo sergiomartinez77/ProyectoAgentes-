@@ -72,40 +72,73 @@ class GeminiClient:
             return self._rutina_local(datos)
 
         lesion_txt = (
-            f"Tiene una lesión en: {datos['lesiones']}. Adapta o elimina ejercicios que la afecten."
+            f"⚠️ Lesión a considerar: {datos['lesiones']}. Sustituye o adapta cualquier ejercicio que la afecte."
             if datos["lesiones"].lower() not in ("ninguna", "none", "no", "n/a", "")
-            else "Sin lesiones."
+            else "Sin lesiones reportadas."
         )
 
-        prompt = f"""Eres un entrenador personal experto y motivador. Crea una rutina de gimnasio semanal completa y personalizada para {datos['nombre']}.
+        # Configuración de series/reps según objetivo
+        config_map = {
+            "Ganar músculo":       "4 series × 8-12 reps | Descanso: 60-90s entre series",
+            "Perder grasa":        "3 series × 15-20 reps | Descanso: 30-45s entre series",
+            "Mejorar resistencia": "3 series × 20-25 reps | Descanso: 30s entre series",
+            "Mantenimiento":       "3 series × 12-15 reps | Descanso: 60s entre series",
+        }
+        config_series = config_map.get(datos["objetivo"], "3 series × 12 reps | Descanso: 60s")
 
-PERFIL DEL USUARIO:
-- Objetivo: {datos['objetivo']}
-- Nivel: {datos['nivel']}
-- Días disponibles: {datos['dias']} por semana
-- Equipamiento: {datos['equipamiento']}
-- Tiempo por sesión: {datos['tiempo']} minutos
-- Músculo a priorizar: {datos['musculo']}
-- {lesion_txt}
+        prompt = f"""Eres un entrenador personal experto. Genera una rutina de gimnasio semanal COMPLETA y DETALLADA para {datos['nombre']}.
 
-FORMATO OBLIGATORIO DE RESPUESTA:
-Para cada día de entrenamiento usa exactamente esta estructura:
+═══════════════════════════════
+PERFIL
+═══════════════════════════════
+• Objetivo: {datos['objetivo']}
+• Nivel: {datos['nivel']}
+• Días de entrenamiento: {datos['dias']} por semana
+• Equipamiento disponible: {datos['equipamiento']}
+• Tiempo por sesión: {datos['tiempo']} minutos
+• Músculo a priorizar: {datos['musculo']}
+• {lesion_txt}
+• Configuración base: {config_series}
 
-📅 DÍA X — [NOMBRE DEL DÍA] ([grupos musculares])
-[Para cada ejercicio:]
-• [Emoji] [Nombre del ejercicio] — [series]×[reps] | Descanso: [tiempo]
-  💡 [Descripción breve de cómo ejecutarlo correctamente en 1 línea]
+═══════════════════════════════
+INSTRUCCIONES OBLIGATORIAS
+═══════════════════════════════
+1. Crea exactamente {datos['dias']} días de entrenamiento, distribuidos inteligentemente según el objetivo y los grupos musculares.
+2. Cada día debe tener entre 5 y 7 ejercicios REALES y ESPECÍFICOS (no genéricos).
+3. Para cada ejercicio incluye OBLIGATORIAMENTE:
+   - Nombre exacto del ejercicio
+   - Series × repeticiones adaptadas al objetivo
+   - Tiempo de descanso
+   - Una descripción técnica breve de ejecución (posición, movimiento clave, músculo que trabaja)
+4. Adapta los ejercicios al equipamiento: si es "Peso corporal" NO uses mancuernas ni barras.
+5. Adapta la dificultad al nivel:
+   - Principiante: movimientos básicos, rango de movimiento completo, sin técnicas avanzadas
+   - Intermedio: ejercicios compuestos + aislamiento, variantes moderadas
+   - Avanzado: técnicas como drop sets, superseries, variantes unilaterales
+6. Prioriza el músculo indicado añadiendo un ejercicio extra o más volumen en ese grupo.
 
-Reglas:
-- Incluye entre 5 y 7 ejercicios por día según el tiempo disponible
-- Elige ejercicios apropiados para el nivel y equipamiento indicados
-- Para nivel Principiante: prioriza ejercicios básicos y compuestos con técnica simple
-- Para nivel Intermedio: mezcla compuestos con algunos de aislamiento
-- Para nivel Avanzado: incluye variantes más exigentes y técnicas avanzadas
-- Adapta series/reps al objetivo: músculo (4×8-12), grasa (3×15-20), resistencia (3×20-25), mantenimiento (3×12-15)
-- Al final agrega una sección "💊 RECOMENDACIONES" con 3 consejos: uno nutricional, uno de descanso y uno específico para el objetivo
-- Usa emojis para hacerlo visual y motivador
-- Responde en español"""
+═══════════════════════════════
+FORMATO EXACTO DE RESPUESTA
+═══════════════════════════════
+Usa EXACTAMENTE este formato para cada día:
+
+📅 DÍA [número] — [Nombre del split] ([grupos musculares])
+
+🔹 [Nombre del ejercicio] — [X series × Y reps] | Descanso: [Xs]
+   📌 [Descripción técnica: cómo ejecutarlo, qué músculo trabaja, punto clave de forma]
+
+[repite para cada ejercicio]
+
+---
+
+Al final de TODOS los días, agrega esta sección:
+
+💊 RECOMENDACIONES PARA {datos['objetivo'].upper()}
+🥩 Nutrición: [consejo nutricional específico para el objetivo]
+😴 Descanso: [consejo de recuperación y sueño]
+📈 Progresión: [cómo avanzar semana a semana]
+
+Responde completamente en español. Sé específico, práctico y motivador."""
 
         return self._llamar(prompt, fallback=self._rutina_local(datos))
 
@@ -148,25 +181,164 @@ Reglas:
         return f"💪 {nombre}, hoy cuesta, pero no te rindas."
 
     def _rutina_local(self, datos: dict) -> str:
-        """Rutina básica de fallback cuando Gemini no está disponible."""
-        nombre   = datos["nombre"]
-        objetivo = datos["objetivo"]
-        dias     = datos["dias"]
-        nivel    = datos["nivel"]
+        """Rutina con ejercicios reales cuando Gemini no está disponible."""
+        nombre    = datos["nombre"]
+        objetivo  = datos["objetivo"]
+        dias      = datos["dias"]
+        nivel     = datos["nivel"]
+        equipo    = datos["equipamiento"]
+        musculo   = datos["musculo"]
 
-        if objetivo == "Ganar músculo":
-            config = "4 series × 8–12 reps | Descanso: 60–90s"
-        elif objetivo == "Perder grasa":
-            config = "3 series × 15–20 reps | Descanso: 30–45s"
-        elif objetivo == "Mejorar resistencia":
-            config = "3 series × 20–25 reps | Descanso: 30s"
+        gym = equipo == "Gimnasio completo"
+        man = equipo == "Mancuernas y barra"
+        bw  = equipo == "Peso corporal"
+
+        config_map = {
+            "Ganar músculo":       ("4×8-12", "60-90s"),
+            "Perder grasa":        ("3×15-20", "30-45s"),
+            "Mejorar resistencia": ("3×20-25", "30s"),
+            "Mantenimiento":       ("3×12-15", "60s"),
+        }
+        series_reps, descanso = config_map.get(objetivo, ("3×12", "60s"))
+
+        def ej(nombre_ej, desc):
+            return f"🔹 **{nombre_ej}** — {series_reps} | Descanso: {descanso}\n   📌 {desc}"
+
+        # ── Banco de ejercicios por grupo y equipamiento ──────────────
+        if gym or man:
+            pecho = [
+                ej("Press de banca plano", "Acostado en banco, baja la barra al pecho y empuja. Trabaja pectoral mayor."),
+                ej("Press inclinado con mancuernas", "Banco a 30-45°, empuja las mancuernas hacia arriba. Activa pectoral superior."),
+                ej("Aperturas en polea baja", "De pie, lleva los cables hacia arriba en arco. Estira y contrae el pectoral."),
+                ej("Fondos en paralelas", "Baja el cuerpo doblando codos a 90° y empuja. Pectoral inferior y tríceps."),
+            ]
+            espalda = [
+                ej("Dominadas con agarre prono", "Cuelga de la barra, lleva el pecho hacia ella. Trabaja dorsal y bíceps."),
+                ej("Remo con barra", "Espalda recta a 45°, lleva la barra al abdomen. Activa dorsal y romboides."),
+                ej("Remo en polea baja", "Sentado, tira del cable hacia el abdomen. Trabaja dorsal medio y romboides."),
+                ej("Jalón al pecho", "Sentado, tira de la barra hacia el pecho. Trabaja dorsal ancho."),
+            ]
+            piernas = [
+                ej("Sentadilla con barra", "Pies a ancho de hombros, baja hasta paralelo. Cuádriceps, glúteos y core."),
+                ej("Peso muerto rumano", "Espalda recta, baja la barra deslizando por las piernas. Isquiotibiales y glúteos."),
+                ej("Prensa de piernas", "Pies en la plataforma, baja hasta 90° y empuja. Cuádriceps y glúteos."),
+                ej("Curl femoral en máquina", "Boca abajo, lleva los talones hacia los glúteos. Isquiotibiales."),
+                ej("Elevación de talones de pie", "De pie, sube en puntillas lentamente. Gemelos."),
+            ]
+            hombros = [
+                ej("Press militar con barra", "De pie o sentado, empuja la barra sobre la cabeza. Deltoides anterior y medio."),
+                ej("Elevaciones laterales", "Brazos ligeramente flexionados, sube hasta la altura del hombro. Deltoides medio."),
+                ej("Face pulls en polea", "Tira del cable hacia la cara separando los codos. Deltoides posterior y manguito."),
+            ]
+            brazos = [
+                ej("Curl con barra EZ", "Codos pegados al cuerpo, sube la barra hasta los hombros. Bíceps braquial."),
+                ej("Curl martillo", "Agarre neutro, sube la mancuerna. Bíceps y braquiorradial."),
+                ej("Extensión de tríceps en polea", "Codos fijos, extiende el cable hacia abajo. Tríceps."),
+                ej("Press francés", "Acostado, baja la barra a la frente y extiende. Tríceps largo."),
+            ]
+        else:  # Peso corporal
+            pecho = [
+                ej("Flexiones estándar", "Manos a ancho de hombros, baja el pecho al suelo y empuja. Pectoral y tríceps."),
+                ej("Flexiones inclinadas", "Manos elevadas en una silla, baja el pecho. Activa pectoral inferior."),
+                ej("Flexiones declinadas", "Pies elevados, manos en el suelo. Trabaja pectoral superior."),
+                ej("Fondos entre sillas", "Manos en dos sillas, baja doblando codos. Pectoral inferior y tríceps."),
+            ]
+            espalda = [
+                ej("Dominadas", "Cuelga de una barra, lleva el pecho hacia ella. Dorsal y bíceps."),
+                ej("Remo invertido", "Bajo una mesa, tira del cuerpo hacia arriba. Dorsal y romboides."),
+                ej("Superman", "Boca abajo, levanta brazos y piernas simultáneamente. Erector espinal."),
+            ]
+            piernas = [
+                ej("Sentadilla con peso corporal", "Pies a ancho de hombros, baja hasta paralelo. Cuádriceps y glúteos."),
+                ej("Zancadas alternadas", "Da un paso al frente y baja la rodilla trasera. Cuádriceps y glúteos."),
+                ej("Sentadilla búlgara", "Pie trasero elevado, baja la rodilla delantera. Cuádriceps y glúteos."),
+                ej("Puente de glúteos", "Acostado, sube las caderas apretando glúteos. Glúteos e isquiotibiales."),
+                ej("Elevación de talones", "De pie, sube en puntillas lentamente. Gemelos."),
+            ]
+            hombros = [
+                ej("Pike push-up", "Caderas arriba en V invertida, baja la cabeza al suelo. Deltoides anterior."),
+                ej("Plancha lateral con rotación", "Plancha lateral, rota el brazo libre bajo el cuerpo. Hombros y core."),
+            ]
+            brazos = [
+                ej("Flexiones diamante", "Manos juntas formando un diamante. Tríceps y pectoral interno."),
+                ej("Curl con mochila", "Siéntate, cuelga una mochila del pie y flexiona la rodilla. Bíceps femoral."),
+            ]
+
+        # ── Construir días según cantidad ─────────────────────────────
+        grupos = {
+            "Pecho": pecho, "Espalda": espalda, "Piernas": piernas,
+            "Hombros": hombros, "Brazos": brazos
+        }
+
+        core = [
+            ej("Plancha frontal", "Apoya antebrazos y pies, mantén el cuerpo recto. Core completo."),
+            ej("Crunch abdominal", "Acostado, sube el torso contrayendo el abdomen. Recto abdominal."),
+            ej("Elevación de piernas", "Acostado, sube las piernas rectas a 90°. Abdomen inferior."),
+        ]
+
+        if dias <= 2:
+            dias_rutina = [
+                ("1", "Cuerpo completo A", pecho[:2] + espalda[:2] + piernas[:2] + core[:1]),
+                ("2", "Cuerpo completo B", piernas[2:4] + hombros[:2] + brazos[:2] + core[1:2]),
+            ]
+        elif dias == 3:
+            dias_rutina = [
+                ("1", "Empuje — Pecho · Hombros · Tríceps", pecho + hombros[:2] + brazos[2:]),
+                ("2", "Jale — Espalda · Bíceps", espalda + brazos[:2]),
+                ("3", "Piernas y Core", piernas + core),
+            ]
+        elif dias == 4:
+            dias_rutina = [
+                ("1", "Pecho y Tríceps", pecho + brazos[2:]),
+                ("2", "Espalda y Bíceps", espalda + brazos[:2]),
+                ("3", "Piernas", piernas),
+                ("4", "Hombros y Core", hombros + core),
+            ]
         else:
-            config = "3 series × 10–15 reps | Descanso: 60s"
+            dias_rutina = [
+                ("1", "Pecho", pecho + [brazos[2]]),
+                ("2", "Espalda", espalda + [brazos[0]]),
+                ("3", "Piernas", piernas),
+                ("4", "Hombros", hombros + core[:1]),
+                ("5", "Brazos y Core", brazos + core[1:]),
+            ]
 
-        return (
-            f"💪 Rutina básica para {nombre} ({objetivo} · {nivel})\n\n"
-            f"⚙️ Configuración: {config}\n\n"
-            f"📅 Distribuye tus {dias} días entre: Empuje (pecho/hombros/tríceps), "
-            f"Jale (espalda/bíceps) y Piernas.\n\n"
-            f"🥩 Consejo: Consume 1.6–2g de proteína por kg de peso corporal y duerme 7–9h."
+        # Añadir ejercicio extra del músculo priorizado
+        extra_map = {
+            "Pecho": pecho[-1], "Espalda": espalda[-1], "Piernas": piernas[-1],
+            "Hombros": hombros[-1], "Brazos": brazos[-1]
+        }
+
+        resultado = f"⚙️ **Configuración:** {series_reps} | Descanso: {descanso}\n\n"
+
+        for num, nombre_dia, ejercicios in dias_rutina[:dias]:
+            resultado += f"📅 **DÍA {num} — {nombre_dia}**\n\n"
+            for e in ejercicios:
+                resultado += e + "\n\n"
+
+        # Recomendaciones finales
+        consejos = {
+            "Ganar músculo":       ("Consume 1.6–2g de proteína por kg de peso. Prioriza carnes magras, huevos y legumbres.",
+                                    "Duerme 7–9h. El músculo crece durante el descanso, no en el gym.",
+                                    "Aumenta el peso o las reps cada semana. La progresión es clave."),
+            "Perder grasa":        ("Mantén un déficit de 300–500 kcal. No elimines proteína, reduce carbohidratos.",
+                                    "El descanso evita el catabolismo muscular. No entrenes más de 5 días seguidos.",
+                                    "Añade 20–30 min de cardio moderado los días de descanso."),
+            "Mejorar resistencia": ("Hidratación constante. Consume carbohidratos complejos antes de entrenar.",
+                                    "Descansa al menos 48h entre sesiones del mismo grupo muscular.",
+                                    "Reduce el descanso entre series 5 segundos cada semana."),
+            "Mantenimiento":       ("Mantén un balance calórico. Varía las fuentes de proteína.",
+                                    "Alterna días de alta y baja intensidad para evitar el sobreentrenamiento.",
+                                    "Cambia los ejercicios cada 4–6 semanas para evitar el estancamiento."),
+        }
+        nut, desc, prog = consejos.get(objetivo, ("Come bien.", "Descansa.", "Progresa."))
+
+        resultado += (
+            f"---\n\n"
+            f"💊 **RECOMENDACIONES PARA {objetivo.upper()}**\n\n"
+            f"🥩 **Nutrición:** {nut}\n\n"
+            f"😴 **Descanso:** {desc}\n\n"
+            f"📈 **Progresión:** {prog}"
         )
+
+        return resultado
