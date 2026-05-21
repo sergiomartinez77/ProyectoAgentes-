@@ -22,7 +22,7 @@ class GeminiClient:
     MODELO = "llama-3.3-70b-versatile"
 
     def __init__(self):
-        self.api_key    = os.getenv("GEMINI_API_KEY", "")
+        self.api_key    = os.getenv("groq_variable", "")
         self.disponible = False
         self._cliente   = None
         self._inicializar()
