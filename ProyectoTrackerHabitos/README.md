@@ -1,4 +1,4 @@
-# 🤖 Tracker IA — Chatbot de Hábitos
+# ⚡ Trackito — Asistente de Hábitos
 
 Chatbot inteligente que analiza tus hábitos diarios y genera rutinas de gimnasio personalizadas.
 

@@ -93,7 +93,7 @@ class IAPro:
 
         if session_id not in self.sesiones or mensaje == "__inicio__":
             self.sesiones[session_id] = {"flujo": "nombre", "paso": "nombre", "datos": {}}
-            return "¡Hola! Soy tu asistente de hábitos 🤖 ¿Cómo te llamas?"
+            return "¡Hola! Soy Trackito, tu asistente de hábitos ⚡ ¿Cómo te llamas?"
 
         sesion = self.sesiones[session_id]
         flujo  = sesion["flujo"]
@@ -151,7 +151,7 @@ class IAPro:
     def reiniciar(self, session_id: str) -> str:
         if session_id in self.sesiones:
             del self.sesiones[session_id]
-        return "🔄 Sesión reiniciada.\n\n¡Hola! Soy tu asistente de hábitos 🤖 ¿Cómo te llamas?"
+        return "🔄 Sesión reiniciada.\n\n¡Hola! Soy Trackito, tu asistente de hábitos ⚡ ¿Cómo te llamas?"
 
     # ------------------------------------------------------------------
     # Helpers de flujo
