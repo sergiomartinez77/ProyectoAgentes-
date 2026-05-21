@@ -70,5 +70,24 @@ def reset():
     return jsonify({"respuesta": respuesta})
 
 
+@app.route("/api/status")
+def status():
+    ia = get_ia()
+    test_error = None
+    test_ok = False
+    if ia.gemini.disponible:
+        try:
+            r = ia.gemini._llamar_chat("Di solo: OK", "test", "FAIL")
+            test_ok = r != "FAIL"
+        except Exception as e:
+            test_error = str(e)[:120]
+    return jsonify({
+        "groq_disponible": ia.gemini.disponible,
+        "test_ok": test_ok,
+        "test_error": test_error,
+        "modelo": ia.gemini.MODELO,
+    })
+
+
 if __name__ == "__main__":
     app.run(debug=True)
