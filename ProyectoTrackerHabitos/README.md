@@ -63,30 +63,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configurar la API key de Gemini
-
-1. Ve a [aistudio.google.com](https://aistudio.google.com) e inicia sesión con tu cuenta de Google
-2. Click en **Get API key** → **Create API key**
-3. Copia la key (empieza con `AIza...`)
-4. Crea un archivo `.env` en la raíz del proyecto:
-
-```bash
-# Windows
-copy .env.example .env
-
-# Mac / Linux
-cp .env.example .env
-```
-
-5. Abre `.env` y reemplaza el valor:
-
-```
-GEMINI_API_KEY=AIza...tu_key_aqui
-```
-
-> **Nota:** El chatbot funciona sin la API key usando respuestas locales. Gemini solo mejora la calidad de los consejos y rutinas.
-
-### 5. Correr la aplicación
+### 4. Correr la aplicación
 
 ```bash
 python app.py
