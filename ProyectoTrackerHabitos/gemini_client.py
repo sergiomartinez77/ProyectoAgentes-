@@ -27,11 +27,13 @@ class GeminiClient:
         try:
             import google.generativeai as genai
             genai.configure(api_key=self.api_key)
+            # Verificar que la key es válida con una llamada mínima
             self._cliente   = genai.GenerativeModel(self.MODELO)
             self.disponible = True
             print("✅ Gemini conectado correctamente.")
         except Exception as e:
             print(f"⚠️  Gemini no disponible: {e}")
+            print("💡 Genera una nueva key en aistudio.google.com y actualiza el .env")
 
     # ------------------------------------------------------------------
     # API pública
@@ -70,25 +72,41 @@ class GeminiClient:
             return self._rutina_local(datos)
 
         lesion_txt = (
-            f"Tiene una lesión en: {datos['lesiones']}. Evita ejercicios que la afecten."
+            f"Tiene una lesión en: {datos['lesiones']}. Adapta o elimina ejercicios que la afecten."
             if datos["lesiones"].lower() not in ("ninguna", "none", "no", "n/a", "")
-            else "No tiene lesiones."
+            else "Sin lesiones."
         )
 
-        prompt = (
-            f"Eres un entrenador personal experto. Crea una rutina de gimnasio semanal "
-            f"para {datos['nombre']} con estas características:\n"
-            f"- Objetivo: {datos['objetivo']}\n"
-            f"- Nivel: {datos['nivel']}\n"
-            f"- Días disponibles: {datos['dias']} por semana\n"
-            f"- Equipamiento: {datos['equipamiento']}\n"
-            f"- Tiempo por sesión: {datos['tiempo']} minutos\n"
-            f"- Músculo a priorizar: {datos['musculo']}\n"
-            f"- {lesion_txt}\n\n"
-            f"Estructura la rutina por días con nombre del día, grupos musculares y ejercicios específicos "
-            f"(series × repeticiones). Incluye un consejo nutricional al final. "
-            f"Usa emojis para hacerlo visual. Sé específico y práctico."
-        )
+        prompt = f"""Eres un entrenador personal experto y motivador. Crea una rutina de gimnasio semanal completa y personalizada para {datos['nombre']}.
+
+PERFIL DEL USUARIO:
+- Objetivo: {datos['objetivo']}
+- Nivel: {datos['nivel']}
+- Días disponibles: {datos['dias']} por semana
+- Equipamiento: {datos['equipamiento']}
+- Tiempo por sesión: {datos['tiempo']} minutos
+- Músculo a priorizar: {datos['musculo']}
+- {lesion_txt}
+
+FORMATO OBLIGATORIO DE RESPUESTA:
+Para cada día de entrenamiento usa exactamente esta estructura:
+
+📅 DÍA X — [NOMBRE DEL DÍA] ([grupos musculares])
+[Para cada ejercicio:]
+• [Emoji] [Nombre del ejercicio] — [series]×[reps] | Descanso: [tiempo]
+  💡 [Descripción breve de cómo ejecutarlo correctamente en 1 línea]
+
+Reglas:
+- Incluye entre 5 y 7 ejercicios por día según el tiempo disponible
+- Elige ejercicios apropiados para el nivel y equipamiento indicados
+- Para nivel Principiante: prioriza ejercicios básicos y compuestos con técnica simple
+- Para nivel Intermedio: mezcla compuestos con algunos de aislamiento
+- Para nivel Avanzado: incluye variantes más exigentes y técnicas avanzadas
+- Adapta series/reps al objetivo: músculo (4×8-12), grasa (3×15-20), resistencia (3×20-25), mantenimiento (3×12-15)
+- Al final agrega una sección "💊 RECOMENDACIONES" con 3 consejos: uno nutricional, uno de descanso y uno específico para el objetivo
+- Usa emojis para hacerlo visual y motivador
+- Responde en español"""
+
         return self._llamar(prompt, fallback=self._rutina_local(datos))
 
     # ------------------------------------------------------------------
