@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, jsonify, session
 from ia2 import IAPro
-import uuid
 import os
 
 app = Flask(
@@ -8,9 +7,9 @@ app = Flask(
     template_folder=os.path.join(os.path.dirname(__file__), "templates"),
     static_folder=os.path.join(os.path.dirname(__file__), "static"),
 )
-app.secret_key = os.environ.get("SECRET_KEY", "tracker_habitos_secret_key")
+app.secret_key = os.environ.get("SECRET_KEY", "trackito_secret_2024_xk9")
 
-# Singleton: se inicializa una vez por proceso/worker
+# IAPro es stateless: solo necesita el modelo ML y Gemini, no guarda sesiones
 _ia_instance = None
 
 def get_ia():
@@ -22,8 +21,9 @@ def get_ia():
 
 @app.route("/")
 def inicio():
-    if "session_id" not in session:
-        session["session_id"] = str(uuid.uuid4())
+    # Inicializar sesión vacía si no existe
+    if "chat_state" not in session:
+        session["chat_state"] = {"flujo": "nombre", "paso": "nombre", "datos": {}}
     return render_template("index.html")
 
 
@@ -33,43 +33,40 @@ def chat():
     if not data or "mensaje" not in data:
         return jsonify({"error": "Falta el campo 'mensaje'"}), 400
 
-    session_id = session.get("session_id")
-    if not session_id:
-        session_id = str(uuid.uuid4())
-        session["session_id"] = session_id
-
     mensaje = data["mensaje"].strip()
-    ia = get_ia()
+    ia      = get_ia()
 
+    # Leer estado desde la cookie
+    estado = session.get("chat_state")
+    if not estado or mensaje == "__inicio__":
+        estado = ia.sesion_nueva()
+        respuesta, estado = ia.responder(estado, "__inicio__")
+        session["chat_state"] = estado
+        return jsonify({"respuesta": respuesta})
+
+    # Comando de reinicio
     if mensaje.lower() in ("reiniciar", "reset", "nuevo", "restart"):
-        respuesta = ia.reiniciar(session_id)
-    else:
-        respuesta = ia.responder(session_id, mensaje)
+        respuesta, estado = ia.reiniciar(estado)
+        session["chat_state"] = estado
+        return jsonify({"respuesta": respuesta})
+
+    # Procesar mensaje normal
+    respuesta, estado = ia.responder(estado, mensaje)
+
+    # Guardar estado actualizado en la cookie
+    session["chat_state"] = estado
+    session.modified = True
 
     return jsonify({"respuesta": respuesta})
 
 
 @app.route("/api/reset", methods=["POST"])
 def reset():
-    session_id = session.get("session_id", str(uuid.uuid4()))
-    session["session_id"] = session_id
-    respuesta = get_ia().reiniciar(session_id)
+    ia = get_ia()
+    estado = session.get("chat_state", ia.sesion_nueva())
+    respuesta, estado = ia.reiniciar(estado)
+    session["chat_state"] = estado
     return jsonify({"respuesta": respuesta})
-
-
-@app.route("/api/debug")
-def debug():
-    import google.generativeai as genai
-    key = os.getenv("GEMINI_API_KEY", "")
-    genai.configure(api_key=key)
-    resultados = {}
-    for modelo in ["gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-2.0-flash-lite", "gemini-1.5-flash", "gemini-1.5-pro"]:
-        try:
-            r = genai.GenerativeModel(modelo).generate_content("Di solo: OK")
-            resultados[modelo] = r.text.strip()
-        except Exception as e:
-            resultados[modelo] = f"ERROR: {str(e)[:120]}"
-    return jsonify(resultados)
 
 
 if __name__ == "__main__":

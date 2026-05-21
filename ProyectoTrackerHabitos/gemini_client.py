@@ -13,12 +13,20 @@ load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=False)
 
 class GeminiClient:
 
-    MODELO = "gemini-1.5-flash"
+    # Modelos correctos para API v1beta
+    # Usar las versiones específicas con número de versión
+    MODELOS_DISPONIBLES = [
+        "gemini-2.0-flash",         # Modelo más nuevo
+        "gemini-1.5-flash-001",     # Versión específica 1.5
+        "gemini-1.5-pro-001",       # Versión específica pro
+        "gemini-pro",               # Fallback clásico
+    ]
 
-    def __init__(self):
+    def __init__(self, modelo=None):
         self.api_key    = os.getenv("GEMINI_API_KEY", "")
         self.disponible = False
         self._cliente   = None
+        self._modelo_activo = modelo  # Permite override en tests
         self._inicializar()
 
     def _inicializar(self):
@@ -28,13 +36,48 @@ class GeminiClient:
         try:
             import google.generativeai as genai
             genai.configure(api_key=self.api_key)
-            # Verificar que la key es válida con una llamada mínima
-            self._cliente   = genai.GenerativeModel(self.MODELO)
-            self.disponible = True
-            print("✅ Gemini conectado correctamente.")
+            
+            # Si ya se especificó un modelo, usarlo directamente
+            if self._modelo_activo:
+                try:
+                    self._cliente = genai.GenerativeModel(self._modelo_activo)
+                    self.disponible = True
+                    print(f"✅ Gemini conectado correctamente con modelo: {self._modelo_activo}")
+                    return
+                except Exception as e:
+                    print(f"⚠️  Modelo especificado {self._modelo_activo} no disponible: {str(e)[:100]}")
+                    # Continuar intentando con otros modelos
+            
+            # Intentar con los modelos disponibles en orden de preferencia
+            for modelo in self.MODELOS_DISPONIBLES:
+                try:
+                    print(f"🔍 Intentando con modelo: {modelo}")
+                    cliente = genai.GenerativeModel(modelo)
+                    # Verificar que funciona con una prueba rápida
+                    cliente.generate_content("Prueba")
+                    self._cliente = cliente
+                    self._modelo_activo = modelo
+                    self.disponible = True
+                    print(f"✅ Gemini conectado correctamente con modelo: {modelo}")
+                    return
+                except Exception as modelo_error:
+                    error_msg = str(modelo_error).lower()
+                    if "429" in error_msg or "quota" in error_msg:
+                        print(f"⚠️  Modelo {modelo} rechazado: CUOTA AGOTADA")
+                    else:
+                        print(f"⚠️  Modelo {modelo} no disponible: {str(modelo_error)[:80]}")
+                    continue
+            
+            # Si ningún modelo funcionó
+            print("❌ No se pudo conectar a ningún modelo de Gemini")
+            print("💡 Soluciones:")
+            print("   1. Crea una NUEVA API key en: https://aistudio.google.com")
+            print("   2. Guárdala en el .env como: GEMINI_API_KEY=tu_nueva_key")
+            print("   3. Asegúrate de que tu plan tenga cuota disponible")
+            print("   4. Si todo falla, el app usará respuestas locales")
+            
         except Exception as e:
-            print(f"⚠️  Gemini no disponible: {e}")
-            print("💡 Genera una nueva key en aistudio.google.com y actualiza el .env")
+            print(f"⚠️  Error al conectar Gemini: {e}")
 
     # ------------------------------------------------------------------
     # API pública
@@ -176,25 +219,32 @@ Pregunta de {nombre}: {pregunta}"""
         ))
 
     def _llamar(self, prompt: str, fallback: str) -> str:
+        if not self._cliente:
+            print("⚠️  Cliente Gemini no inicializado, usando fallback local.")
+            return fallback
+        
         try:
             respuesta = self._cliente.generate_content(prompt)
             return respuesta.text.strip()
         except Exception as e:
-            codigo = str(e)
-            print(f"⚠️  Error Gemini: {codigo}")
-            # Si es error de cuota/modelo, intentar reinicializar con modelo alternativo
-            if "429" in codigo or "quota" in codigo.lower():
-                if self.MODELO != "gemini-1.5-flash":
-                    print("🔄 Reintentando con gemini-1.5-flash...")
-                    try:
-                        import google.generativeai as genai
-                        cliente_alt = genai.GenerativeModel("gemini-1.5-flash")
-                        respuesta = cliente_alt.generate_content(prompt)
-                        self._cliente = cliente_alt
-                        self.MODELO = "gemini-1.5-flash"
-                        return respuesta.text.strip()
-                    except Exception as e2:
-                        print(f"⚠️  Error con modelo alternativo: {e2}")
+            error_str = str(e).lower()
+            print(f"⚠️  Error Gemini: {error_str[:150]}")
+            
+            # Error 429: Quota excedida
+            if "429" in error_str or "quota" in error_str or "exceeded" in error_str:
+                print("💡 Tu cuota de API se agotó. Usa una clave nueva en .env")
+                print("   1. Crea una NUEVA API key en: https://aistudio.google.com")
+                print("   2. Reemplaza el GEMINI_API_KEY en tu .env")
+                return fallback
+            
+            # Error 404: Modelo no encontrado
+            if "404" in error_str or "not found" in error_str:
+                print(f"⚠️  Modelo actual ({self._modelo_activo}) no está disponible en v1beta")
+                print("🔄 Usando respuestas locales por ahora...")
+                return fallback
+            
+            # Otro error: usar fallback
+            print(f"💡 Usando respuestas locales (error: {error_str[:80]})")
             return fallback
 
     # ------------------------------------------------------------------

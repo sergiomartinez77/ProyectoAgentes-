@@ -1,6 +1,3 @@
-# Variables de entorno (contiene API keys — NO subir al repo)
-.env
-
 # Python
 __pycache__/
 *.pyc

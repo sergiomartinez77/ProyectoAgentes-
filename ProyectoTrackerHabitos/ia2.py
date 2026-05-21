@@ -1,8 +1,7 @@
 """
-Motor del chatbot híbrido:
-  - RandomForest  → predicción numérica de probabilidad (modelo_prediccion.py)
-  - Gemini        → consejos y rutinas en lenguaje natural (gemini_client.py)
-  - Flujo de chat → recolección de datos paso a paso
+Motor del chatbot híbrido — diseño STATELESS.
+El estado de la sesión se pasa como parámetro y se devuelve modificado,
+permitiendo que el caller (app.py) lo persista donde quiera (cookie, DB, etc.)
 """
 from modelo_prediccion import ModeloPrediccion
 from gemini_client import GeminiClient
@@ -10,15 +9,9 @@ from gemini_client import GeminiClient
 
 class IAPro:
 
-    # ------------------------------------------------------------------
-    # PASOS POR FLUJO
-    # ------------------------------------------------------------------
     PASOS_HABITOS = ["sueno", "animo", "energia", "estres", "redes", "cafe", "ejercicio"]
     PASOS_GYM     = ["objetivo", "nivel", "dias", "equipamiento", "tiempo", "musculo", "lesiones"]
 
-    # ------------------------------------------------------------------
-    # PREGUNTAS
-    # ------------------------------------------------------------------
     PREGUNTAS_HABITOS = {
         "sueno":     "¿Cuántas horas dormiste anoche? (ej: 7.5)",
         "animo":     "¿Cómo está tu estado de ánimo hoy? Del 1 al 10.",
@@ -75,117 +68,113 @@ class IAPro:
     )
 
     def __init__(self):
-        self.sesiones = {}
-
-        # Inicializar modelo ML
         self.modelo = ModeloPrediccion()
-        resultado_entrenamiento = self.modelo.entrenar()
-        print(resultado_entrenamiento)
-
-        # Inicializar cliente Gemini
+        print(self.modelo.entrenar())
         self.gemini = GeminiClient()
 
     # ------------------------------------------------------------------
-    # API pública
+    # API pública — STATELESS
+    # El estado (sesion) se recibe y se devuelve modificado.
+    # app.py es responsable de persistirlo en la cookie.
     # ------------------------------------------------------------------
 
-    def responder(self, session_id: str, mensaje: str) -> str:
+    def sesion_nueva(self) -> dict:
+        """Devuelve un estado de sesión inicial."""
+        return {"flujo": "nombre", "paso": "nombre", "datos": {}}
+
+    def responder(self, sesion: dict, mensaje: str) -> tuple[str, dict]:
+        """
+        Procesa el mensaje y devuelve (respuesta, sesion_actualizada).
+        sesion es un dict con flujo, paso y datos.
+        """
         mensaje = mensaje.strip()
 
-        if session_id not in self.sesiones or mensaje == "__inicio__":
-            self.sesiones[session_id] = {"flujo": "nombre", "paso": "nombre", "datos": {}}
-            return "¡Hola! Soy Trackito, tu asistente de hábitos ⚡ ¿Cómo te llamas?"
-
-        sesion = self.sesiones[session_id]
-        flujo  = sesion["flujo"]
-        paso   = sesion["paso"]
+        flujo = sesion.get("flujo", "nombre")
+        paso  = sesion.get("paso", "nombre")
 
         # ── Nombre ───────────────────────────────────────────────────
         if flujo == "nombre":
-            if not mensaje:
-                return "⚠️ El nombre no puede estar vacío. ¿Cómo te llamas?"
+            if not mensaje or mensaje == "__inicio__":
+                return "¡Hola! Soy Trackito, tu asistente de hábitos ⚡ ¿Cómo te llamas?", sesion
             sesion["datos"]["nombre"] = mensaje.strip().capitalize()
             sesion["flujo"] = "menu"
             sesion["paso"]  = "menu"
-            return f"Hola, **{sesion['datos']['nombre']}** 👋\n\n{self.MENU}"
+            return f"Hola, **{sesion['datos']['nombre']}** 👋\n\n{self.MENU}", sesion
 
         # ── Menú ─────────────────────────────────────────────────────
         if flujo == "menu":
             if mensaje == "1":
                 sesion["flujo"] = "habitos"
                 sesion["paso"]  = "sueno"
-                return self.PREGUNTAS_HABITOS["sueno"]
+                return self.PREGUNTAS_HABITOS["sueno"], sesion
             elif mensaje == "2":
                 sesion["flujo"] = "gym"
                 sesion["paso"]  = "objetivo"
-                return self.PREGUNTAS_GYM["objetivo"]
+                return self.PREGUNTAS_GYM["objetivo"], sesion
             elif mensaje == "3":
                 sesion["flujo"] = "libre"
                 sesion["paso"]  = "libre"
                 return (
-                    f"💬 Modo libre activado. Puedes preguntarme sobre ejercicios, "
-                    f"nutrición, técnica, hábitos saludables o lo que necesites.\n\n"
-                    f"Escribe **menú** en cualquier momento para volver al inicio."
-                )
-            return f"⚠️ Responde con **1**, **2** o **3**.\n\n{self.MENU}"
+                    "💬 Modo libre activado. Puedes preguntarme sobre ejercicios, "
+                    "nutrición, técnica, hábitos saludables o lo que necesites.\n\n"
+                    "Escribe **menú** en cualquier momento para volver al inicio."
+                ), sesion
+            return f"⚠️ Responde con **1**, **2** o **3**.\n\n{self.MENU}", sesion
 
         # ── Flujo hábitos ─────────────────────────────────────────────
         if flujo == "habitos":
             error = self._guardar_habito(sesion, paso, mensaje)
             if error:
-                return f"⚠️ {error}\n\n{self.PREGUNTAS_HABITOS[paso]}"
+                return f"⚠️ {error}\n\n{self.PREGUNTAS_HABITOS[paso]}", sesion
             siguiente = self._siguiente(self.PASOS_HABITOS, paso)
             if siguiente:
                 sesion["paso"] = siguiente
-                return self.PREGUNTAS_HABITOS[siguiente]
+                return self.PREGUNTAS_HABITOS[siguiente], sesion
             resultado = self._analizar_habitos(sesion["datos"])
-            self._reset_a_menu(sesion)
-            return resultado
+            sesion = self._reset_a_menu(sesion)
+            return resultado, sesion
 
         # ── Flujo gym ─────────────────────────────────────────────────
         if flujo == "gym":
             error = self._guardar_gym(sesion, paso, mensaje)
             if error:
-                return f"⚠️ {error}\n\n{self.PREGUNTAS_GYM[paso]}"
+                return f"⚠️ {error}\n\n{self.PREGUNTAS_GYM[paso]}", sesion
             siguiente = self._siguiente(self.PASOS_GYM, paso)
             if siguiente:
                 sesion["paso"] = siguiente
-                return self.PREGUNTAS_GYM[siguiente]
+                return self.PREGUNTAS_GYM[siguiente], sesion
             resultado = self._generar_rutina(sesion["datos"])
-            self._reset_a_menu(sesion)
-            return resultado
+            sesion = self._reset_a_menu(sesion)
+            return resultado, sesion
 
-        # ── Flujo libre (chat con Gemini) ─────────────────────────────
+        # ── Flujo libre ───────────────────────────────────────────────
         if flujo == "libre":
-            # Comando para volver al menú
             if mensaje.lower() in ("menu", "menú", "volver", "inicio", "salir"):
-                self._reset_a_menu(sesion)
-                return f"De vuelta al menú principal 👋\n\n{self.MENU}"
-
+                sesion = self._reset_a_menu(sesion)
+                return f"De vuelta al menú principal 👋\n\n{self.MENU}", sesion
             nombre = sesion["datos"].get("nombre", "")
             respuesta = self.gemini.chat_libre(mensaje, nombre)
-            return respuesta + "\n\n_Escribe **menú** para volver al inicio._"
+            return respuesta + "\n\n_Escribe **menú** para volver al inicio._", sesion
 
-        return "❌ Estado desconocido. Escribe 'reiniciar'."
+        # Estado desconocido → reiniciar
+        sesion = self.sesion_nueva()
+        return "¡Hola! Soy Trackito, tu asistente de hábitos ⚡ ¿Cómo te llamas?", sesion
 
-    def reiniciar(self, session_id: str) -> str:
-        if session_id in self.sesiones:
-            del self.sesiones[session_id]
-        return "🔄 Sesión reiniciada.\n\n¡Hola! Soy Trackito, tu asistente de hábitos ⚡ ¿Cómo te llamas?"
+    def reiniciar(self, sesion: dict) -> tuple[str, dict]:
+        sesion = self.sesion_nueva()
+        return "🔄 Sesión reiniciada.\n\n¡Hola! Soy Trackito, tu asistente de hábitos ⚡ ¿Cómo te llamas?", sesion
 
     # ------------------------------------------------------------------
-    # Helpers de flujo
+    # Helpers
     # ------------------------------------------------------------------
 
     def _siguiente(self, pasos, actual):
         idx = pasos.index(actual)
         return pasos[idx + 1] if idx + 1 < len(pasos) else None
 
-    def _reset_a_menu(self, sesion):
-        nombre = sesion["datos"].get("nombre", "")
-        sesion["flujo"] = "menu"
-        sesion["paso"]  = "menu"
-        sesion["datos"] = {"nombre": nombre}
+    def _reset_a_menu(self, sesion: dict) -> dict:
+        nombre = sesion.get("datos", {}).get("nombre", "")
+        return {"flujo": "menu", "paso": "menu", "datos": {"nombre": nombre}}
 
     # ------------------------------------------------------------------
     # Validación hábitos
@@ -256,14 +245,13 @@ class IAPro:
         return None
 
     # ------------------------------------------------------------------
-    # Análisis de hábitos (RandomForest + Gemini)
+    # Análisis hábitos
     # ------------------------------------------------------------------
 
     def _analizar_habitos(self, d: dict) -> str:
-        nombre    = d["nombre"]
+        nombre        = d["nombre"]
         ejercicio_num = 1 if d["ejercicio"] == "Si" else 0
 
-        # 1. Predicción con RandomForest
         resultado, probabilidad = self.modelo.predecir(
             d["sueno"], d["animo"], d["energia"], d["estres"],
             d["redes"], ejercicio_num, d["cafe"]
@@ -273,9 +261,7 @@ class IAPro:
         barra    = "█" * round(prob_pct / 10) + "░" * (10 - round(prob_pct / 10))
         riesgo   = self._riesgo(prob_pct)
         hora     = self._mejor_hora(d["energia"])
-
-        # 2. Consejo generado por Gemini
-        consejo = self.gemini.consejo_habitos(d, probabilidad)
+        consejo  = self.gemini.consejo_habitos(d, probabilidad)
 
         return (
             f"📊 **Análisis de {nombre}**\n\n"
@@ -284,47 +270,34 @@ class IAPro:
             f"⚠️ Nivel de riesgo: **{riesgo}**\n"
             f"⏰ Mejor hora para actuar: **{hora}**\n\n"
             f"{consejo}\n\n"
-            f"---\n"
-            f"¿Qué quieres hacer ahora?\n\n{self.MENU}"
+            f"---\n¿Qué quieres hacer ahora?\n\n{self.MENU}"
         )
 
     # ------------------------------------------------------------------
-    # Rutina de gym (Gemini)
+    # Rutina gym
     # ------------------------------------------------------------------
 
     def _generar_rutina(self, d: dict) -> str:
-        nombre = d["nombre"]
-
-        # Gemini genera la rutina completa
-        rutina = self.gemini.generar_rutina(d)
-
+        rutina      = self.gemini.generar_rutina(d)
         advertencia = ""
-        lesiones = d.get("lesiones", "ninguna").lower()
-        if lesiones not in ("ninguna", "none", "no", "n/a", ""):
+        if d.get("lesiones", "ninguna").lower() not in ("ninguna", "none", "no", "n/a", ""):
             advertencia = f"⚠️ **Lesión a considerar: {d['lesiones']}**\n\n"
 
         return (
-            f"🏋️ **Rutina de {nombre}**\n\n"
+            f"🏋️ **Rutina de {d['nombre']}**\n\n"
             f"🎯 Objetivo: **{d['objetivo']}** | 📊 Nivel: **{d['nivel']}**\n"
             f"📅 Días: **{d['dias']}/semana** | ⏱️ Tiempo: **{d['tiempo']} min/sesión**\n"
             f"🏠 Equipamiento: **{d['equipamiento']}**\n\n"
-            f"{advertencia}"
-            f"---\n\n"
-            f"{rutina}\n\n"
-            f"---\n"
-            f"¿Qué quieres hacer ahora?\n\n{self.MENU}"
+            f"{advertencia}---\n\n{rutina}\n\n"
+            f"---\n¿Qué quieres hacer ahora?\n\n{self.MENU}"
         )
 
-    # ------------------------------------------------------------------
-    # Helpers de análisis
-    # ------------------------------------------------------------------
-
-    def _riesgo(self, prob: int) -> str:
+    def _riesgo(self, prob):
         if prob >= 75: return "Bajo 🟢"
         if prob >= 50: return "Medio 🟡"
         return "Alto 🔴"
 
-    def _mejor_hora(self, energia: int) -> str:
+    def _mejor_hora(self, energia):
         if energia >= 8: return "7:00 AM"
         if energia >= 5: return "6:30 PM"
         return "8:00 PM"
