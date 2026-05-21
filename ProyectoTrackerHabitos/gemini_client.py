@@ -142,9 +142,37 @@ Responde completamente en español. Sé específico, práctico y motivador."""
 
         return self._llamar(prompt, fallback=self._rutina_local(datos))
 
-    # ------------------------------------------------------------------
-    # Llamada a la API
-    # ------------------------------------------------------------------
+    def chat_libre(self, pregunta: str, nombre: str) -> str:
+        """
+        Modo conversación libre sobre gym y hábitos saludables.
+        Gemini responde cualquier pregunta dentro del dominio.
+        """
+        if not self.disponible:
+            return (
+                "⚠️ Gemini no está disponible ahora mismo.\n\n"
+                "Puedo ayudarte con el análisis de hábitos o generarte una rutina. "
+                "Elige una opción del menú principal."
+            )
+
+        prompt = f"""Eres Trackito, un asistente experto en fitness, gimnasio y hábitos saludables. 
+Tu personalidad es motivadora, directa y cercana. Usas emojis con moderación.
+
+El usuario se llama {nombre}.
+
+REGLAS ESTRICTAS:
+- Solo respondes preguntas sobre: ejercicio, gym, nutrición deportiva, hábitos saludables, sueño, estrés, bienestar físico y mental relacionado con el fitness.
+- Si te preguntan algo fuera de ese dominio, responde amablemente que solo puedes ayudar con temas de fitness y hábitos saludables, y sugiere qué podrías responderle.
+- Sé específico y práctico. Si te preguntan por un ejercicio, explica cómo hacerlo, músculos que trabaja y errores comunes.
+- Respuestas concisas: máximo 5-6 líneas salvo que la pregunta requiera más detalle.
+- Responde siempre en español.
+
+Pregunta de {nombre}: {pregunta}"""
+
+        return self._llamar(prompt, fallback=(
+            "💪 Puedo responder preguntas sobre ejercicios, nutrición y hábitos saludables. "
+            "En este momento Gemini no está disponible, pero puedo generarte una rutina completa "
+            "o analizar tus hábitos del día desde el menú principal."
+        ))
 
     def _llamar(self, prompt: str, fallback: str) -> str:
         try:

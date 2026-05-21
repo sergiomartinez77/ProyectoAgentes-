@@ -69,8 +69,9 @@ class IAPro:
     MENU = (
         "¿Qué quieres hacer hoy?\n\n"
         "1️⃣ Análisis de hábitos diarios\n"
-        "2️⃣ Generar rutina de gimnasio\n\n"
-        "Responde con **1** o **2**."
+        "2️⃣ Generar rutina de gimnasio\n"
+        "3️⃣ Pregúntame sobre gym o hábitos\n\n"
+        "Responde con **1**, **2** o **3**."
     )
 
     def __init__(self):
@@ -118,7 +119,15 @@ class IAPro:
                 sesion["flujo"] = "gym"
                 sesion["paso"]  = "objetivo"
                 return self.PREGUNTAS_GYM["objetivo"]
-            return f"⚠️ Responde con **1** o **2**.\n\n{self.MENU}"
+            elif mensaje == "3":
+                sesion["flujo"] = "libre"
+                sesion["paso"]  = "libre"
+                return (
+                    f"💬 Modo libre activado. Puedes preguntarme sobre ejercicios, "
+                    f"nutrición, técnica, hábitos saludables o lo que necesites.\n\n"
+                    f"Escribe **menú** en cualquier momento para volver al inicio."
+                )
+            return f"⚠️ Responde con **1**, **2** o **3**.\n\n{self.MENU}"
 
         # ── Flujo hábitos ─────────────────────────────────────────────
         if flujo == "habitos":
@@ -145,6 +154,17 @@ class IAPro:
             resultado = self._generar_rutina(sesion["datos"])
             self._reset_a_menu(sesion)
             return resultado
+
+        # ── Flujo libre (chat con Gemini) ─────────────────────────────
+        if flujo == "libre":
+            # Comando para volver al menú
+            if mensaje.lower() in ("menu", "menú", "volver", "inicio", "salir"):
+                self._reset_a_menu(sesion)
+                return f"De vuelta al menú principal 👋\n\n{self.MENU}"
+
+            nombre = sesion["datos"].get("nombre", "")
+            respuesta = self.gemini.chat_libre(mensaje, nombre)
+            return respuesta + "\n\n_Escribe **menú** para volver al inicio._"
 
         return "❌ Estado desconocido. Escribe 'reiniciar'."
 
