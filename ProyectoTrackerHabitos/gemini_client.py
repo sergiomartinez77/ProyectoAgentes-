@@ -15,6 +15,38 @@ try:
 except Exception:
     pass
 
+# ──────────────────────────────────────────────────────────────────────
+# SYSTEM PROMPT BASE — define la personalidad y conocimiento de Trackito
+# ──────────────────────────────────────────────────────────────────────
+SYSTEM_TRACKITO = """Eres Trackito, un asistente de fitness y hábitos saludables altamente especializado.
+
+CONOCIMIENTO Y ESPECIALIDAD:
+- Entrenamiento de fuerza: periodización, progresión de cargas, splits (PPL, Upper/Lower, Full Body, Bro Split)
+- Nutrición deportiva: macronutrientes, timing de comidas, suplementación básica (proteína, creatina, cafeína)
+- Hábitos saludables: sueño, manejo del estrés, hidratación, rutinas de recuperación
+- Biomecánica: técnica correcta de ejercicios compuestos (sentadilla, peso muerto, press, dominadas)
+- Psicología del deporte: motivación, adherencia, manejo de rachas y recaídas
+
+PRINCIPIOS QUE SIGUES:
+- La progresión de sobrecarga es la base del progreso muscular
+- El descanso y la nutrición son tan importantes como el entrenamiento
+- La consistencia supera a la intensidad a largo plazo
+- Adaptas las recomendaciones al nivel, equipamiento y objetivos del usuario
+- Nunca recomiendas esteroides ni sustancias prohibidas
+- Siempre priorizas la técnica correcta sobre el peso
+
+PERSONALIDAD:
+- Directo, motivador y empático
+- Usas emojis con moderación para hacer el texto visual
+- Respuestas concisas pero completas
+- Hablas en español siempre
+- Tratas al usuario por su nombre cuando lo conoces
+
+RESTRICCIONES:
+- Solo respondes sobre fitness, gym, nutrición deportiva y hábitos saludables
+- Si te preguntan algo fuera del dominio, redirige amablemente al tema de fitness
+- No das diagnósticos médicos ni reemplazas a un profesional de salud"""
+
 
 class GeminiClient:
     """Mantiene el nombre GeminiClient para no romper imports, pero usa Groq internamente."""
@@ -48,66 +80,95 @@ class GeminiClient:
             return self._consejo_local(datos, probabilidad)
 
         prob_pct = round(probabilidad * 100)
-        prompt = (
-            f"Eres un coach de hábitos motivador y empático. "
-            f"El usuario se llama {datos['nombre']}. "
-            f"Hoy durmió {datos['sueno']} horas, su ánimo es {datos['animo']}/10, "
-            f"energía {datos['energia']}/10, estrés {datos['estres']}/10, "
-            f"lleva {datos['redes']} minutos en redes sociales, "
-            f"tomó {datos['cafe']} tazas de café y "
-            f"{'sí hizo' if datos['ejercicio'] == 'Si' else 'no hizo'} ejercicio. "
-            f"Un modelo de IA predice que tiene {prob_pct}% de probabilidad de cumplir su hábito hoy. "
-            f"Da un consejo personalizado, directo y motivador en máximo 3 oraciones. "
-            f"Usa emojis. No repitas los datos, solo da el consejo. Responde en español."
-        )
-        return self._llamar(prompt, fallback=self._consejo_local(datos, probabilidad))
+        user_msg = f"""Analiza el estado del día de {datos['nombre']} y da un consejo personalizado:
+
+- Horas de sueño: {datos['sueno']}h
+- Estado de ánimo: {datos['animo']}/10
+- Nivel de energía: {datos['energia']}/10
+- Nivel de estrés: {datos['estres']}/10
+- Tiempo en redes sociales: {datos['redes']} minutos
+- Tazas de café: {datos['cafe']}
+- Ejercicio hoy: {datos['ejercicio']}
+- Probabilidad de cumplir hábito (modelo IA): {prob_pct}%
+
+Da un consejo específico, accionable y motivador en máximo 3 oraciones. 
+Menciona el factor más crítico de su día y qué hacer al respecto.
+Usa 1-2 emojis relevantes."""
+
+        return self._llamar_chat(SYSTEM_TRACKITO, user_msg,
+                                 fallback=self._consejo_local(datos, probabilidad))
 
     def generar_rutina(self, datos: dict) -> str:
         if not self.disponible:
             return self._rutina_local(datos)
 
         lesion_txt = (
-            f"⚠️ Lesión a considerar: {datos['lesiones']}. Sustituye o adapta ejercicios que la afecten."
+            f"IMPORTANTE - Lesión/zona a evitar: {datos['lesiones']}. "
+            f"Sustituye cualquier ejercicio que la afecte por una alternativa segura."
             if datos["lesiones"].lower() not in ("ninguna", "none", "no", "n/a", "")
             else "Sin lesiones reportadas."
         )
 
         config_map = {
-            "Ganar músculo":       "4 series × 8-12 reps | Descanso: 60-90s",
-            "Perder grasa":        "3 series × 15-20 reps | Descanso: 30-45s",
-            "Mejorar resistencia": "3 series × 20-25 reps | Descanso: 30s",
-            "Mantenimiento":       "3 series × 12-15 reps | Descanso: 60s",
+            "Ganar músculo":       ("4 series × 8-12 reps", "60-90 segundos"),
+            "Perder grasa":        ("3 series × 15-20 reps", "30-45 segundos"),
+            "Mejorar resistencia": ("3 series × 20-25 reps", "30 segundos"),
+            "Mantenimiento":       ("3 series × 12-15 reps", "60 segundos"),
         }
-        config_series = config_map.get(datos["objetivo"], "3 series × 12 reps | Descanso: 60s")
+        series, descanso = config_map.get(datos["objetivo"], ("3 series × 12 reps", "60 segundos"))
 
-        prompt = f"""Eres un entrenador personal experto. Genera una rutina de gimnasio semanal COMPLETA para {datos['nombre']}.
+        user_msg = f"""Crea una rutina de gimnasio semanal COMPLETA y DETALLADA para {datos['nombre']}.
 
-PERFIL:
-• Objetivo: {datos['objetivo']}
-• Nivel: {datos['nivel']}
-• Días: {datos['dias']} por semana
-• Equipamiento: {datos['equipamiento']}
-• Tiempo por sesión: {datos['tiempo']} minutos
-• Músculo a priorizar: {datos['musculo']}
-• {lesion_txt}
-• Configuración base: {config_series}
+PERFIL DEL USUARIO:
+- Objetivo principal: {datos['objetivo']}
+- Nivel de experiencia: {datos['nivel']}
+- Días disponibles para entrenar: {datos['dias']} días por semana
+- Equipamiento disponible: {datos['equipamiento']}
+- Duración de cada sesión: {datos['tiempo']} minutos
+- Grupo muscular a priorizar: {datos['musculo']}
+- {lesion_txt}
 
-INSTRUCCIONES:
-1. Crea exactamente {datos['dias']} días de entrenamiento.
-2. Cada día: 5-7 ejercicios REALES y ESPECÍFICOS.
-3. Por cada ejercicio incluye: nombre, series×reps, descanso y descripción técnica breve.
-4. Adapta al equipamiento: si es "Peso corporal" NO uses mancuernas ni barras.
-5. Adapta al nivel: Principiante=básicos, Intermedio=compuestos+aislamiento, Avanzado=técnicas avanzadas.
-6. Al final agrega sección "💊 RECOMENDACIONES" con consejo nutricional, de descanso y de progresión.
+CONFIGURACIÓN BASE:
+- Series y repeticiones: {series}
+- Descanso entre series: {descanso}
 
-FORMATO por día:
-📅 DÍA [N] — [Nombre del split] ([grupos musculares])
-🔹 [Ejercicio] — [series×reps] | Descanso: [Xs]
-   📌 [Descripción técnica breve]
+INSTRUCCIONES OBLIGATORIAS:
+1. Crea exactamente {datos['dias']} días de entrenamiento con nombres descriptivos del split
+2. Cada día debe tener entre 5 y 7 ejercicios REALES y ESPECÍFICOS (no genéricos)
+3. Para CADA ejercicio incluye OBLIGATORIAMENTE:
+   • Nombre exacto del ejercicio
+   • Series × repeticiones específicas
+   • Tiempo de descanso
+   • Descripción técnica: posición inicial, movimiento, músculo principal trabajado y error común a evitar
+4. Si el equipamiento es "Peso corporal", NO uses mancuernas, barras ni máquinas
+5. Si el equipamiento es "Mancuernas y barra en casa", no uses máquinas de cable ni poleas
+6. Adapta la complejidad al nivel:
+   - Principiante: movimientos básicos, rango completo, sin técnicas avanzadas
+   - Intermedio: compuestos + aislamiento, variantes moderadas
+   - Avanzado: superseries, drop sets, variantes unilaterales, técnicas de intensidad
+7. Añade volumen extra en el grupo muscular priorizado
+8. Al final incluye la sección RECOMENDACIONES con:
+   - Nutrición específica para el objetivo
+   - Protocolo de descanso y recuperación
+   - Plan de progresión para las próximas 4 semanas
 
-Responde completamente en español."""
+FORMATO EXACTO:
+📅 DÍA [N] — [Nombre del split] | [Grupos musculares]
 
-        return self._llamar(prompt, fallback=self._rutina_local(datos))
+🔹 [Nombre del ejercicio] — [X series × Y reps] | Descanso: [tiempo]
+   📌 Técnica: [posición inicial]. [movimiento principal]. Trabaja: [músculo]. Error común: [error a evitar].
+
+[repite para cada ejercicio del día]
+
+---
+
+💊 RECOMENDACIONES PERSONALIZADAS PARA {datos['objetivo'].upper()}
+🥩 Nutrición: [consejo específico con números concretos]
+😴 Recuperación: [protocolo de descanso]
+📈 Progresión semanas 1-4: [plan concreto de progresión]"""
+
+        return self._llamar_chat(SYSTEM_TRACKITO, user_msg,
+                                 fallback=self._rutina_local(datos))
 
     def chat_libre(self, pregunta: str, nombre: str) -> str:
         if not self.disponible:
@@ -117,20 +178,12 @@ Responde completamente en español."""
                 "Elige una opción del menú principal."
             )
 
-        system = (
-            "Eres Trackito, un asistente experto en fitness, gimnasio y hábitos saludables. "
-            "Tu personalidad es motivadora, directa y cercana. Usas emojis con moderación. "
-            "SOLO respondes sobre: ejercicio, gym, nutrición deportiva, hábitos saludables, "
-            "sueño, estrés y bienestar físico. Si te preguntan algo fuera de ese dominio, "
-            "redirige amablemente al tema de fitness. Sé específico y práctico. "
-            "Máximo 6 líneas salvo que la pregunta requiera más detalle. Responde en español."
+        user_msg = f"{nombre} pregunta: {pregunta}"
+        return self._llamar_chat(
+            SYSTEM_TRACKITO,
+            user_msg,
+            fallback="💪 En este momento el servicio no está disponible. Intenta de nuevo en unos segundos."
         )
-
-        return self._llamar_chat(system, f"{nombre} pregunta: {pregunta}",
-                                 fallback=(
-                                     "💪 Puedo responder sobre ejercicios, nutrición y hábitos saludables. "
-                                     "En este momento el servicio no está disponible."
-                                 ))
 
     # ------------------------------------------------------------------
     # Llamadas a la API
@@ -142,7 +195,7 @@ Responde completamente en español."""
                 model=self.MODELO,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
-                max_tokens=1024,
+                max_tokens=2048,
             )
             return resp.choices[0].message.content.strip()
         except Exception as e:
@@ -158,7 +211,7 @@ Responde completamente en español."""
                     {"role": "user",   "content": user},
                 ],
                 temperature=0.7,
-                max_tokens=512,
+                max_tokens=2048,
             )
             return resp.choices[0].message.content.strip()
         except Exception as e:
